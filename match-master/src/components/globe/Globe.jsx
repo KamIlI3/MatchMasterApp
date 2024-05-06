@@ -37,7 +37,7 @@ class Globe extends Component{
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.mount.appendChild(this.renderer.domElement);
     this.camera.position.z = 20;
-    this.camera.position.set(0, 0, 20); // Przesunięcie kamery do tyłu
+    this.camera.position.set(0, 0, 20); 
     this.camera.lookAt(0, 0, 0);
 
     this.addEarth();
@@ -78,44 +78,41 @@ addSkyBox = () => {
 }
 
 addCountryBorders = () => {
-  // Przetwórz dane granic krajów i dodaj do sceny
   const geoJsonFeatures = countriesData.features;
   const countryBordersGroup = new THREE.Group();
 
   geoJsonFeatures.forEach(feature => {
-    const coordinates = feature.geometry.coordinates;
-    coordinates.forEach(polygon => {
-      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff }); // Materiał linii granic kraju
+    const geometries = feature.geometry.type === 'MultiPolygon' ?
+      feature.geometry.coordinates :
+      [feature.geometry.coordinates];
 
-      // Przeskaluj i przesuń współrzędne granic kraju
-      const scaledPoints = polygon.map(point => {
-        // Przekształć współrzędne geograficzne na współrzędne sferyczne
+    geometries.forEach(coordinates => {
+      const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffffff });
+      
+      const scaledPoints = coordinates.map(polygon => polygon.map(point => {
         const phi = (90 - point[1]) * (Math.PI / 180);
-        const theta = -(point[0] + 180) * (Math.PI / 180); // Zmiana znaku dla theta
+        const theta = -(point[0] + 180) * (Math.PI / 180);
     
-        // Przesunięcie granic
-        const offsetX = 0; // Przesunięcie w osi X
-        const offsetY = 0; // Przesunięcie w osi Y
-        const offsetZ = 0; // Przesunięcie w osi Z
+        const offsetX = 0;
+        const offsetY = 0;
+        const offsetZ = 0;
     
-        // Przekształć współrzędne sferyczne na współrzędne kartezjańskie i dodaj przesunięcie
         const x = Math.sin(phi) * Math.cos(theta) + offsetX;
         const y = Math.cos(phi) + offsetY;
         const z = Math.sin(phi) * Math.sin(theta) + offsetZ;
     
-        return new THREE.Vector3(x, y, z).multiplyScalar(10); // Skalowanie do promienia globusa
-      });
-
-      // Utwórz geometrię linii granic kraju
+        return new THREE.Vector3(x, y, z).multiplyScalar(10);
+      })).flat();
+      
       const geometry = new THREE.BufferGeometry().setFromPoints(scaledPoints);
-      const line = new THREE.Line(geometry, lineMaterial); // Utwórz obiekt linii granic kraju
-
-      countryBordersGroup.add(line); // Dodaj linie granic kraju do grupy
+      const line = new THREE.Line(geometry, lineMaterial);
+      
+      countryBordersGroup.add(line);
     });
   });
 
-  this.scene.add(countryBordersGroup); // Dodaj grupę granic krajów do sceny
-  
+  this.scene.add(countryBordersGroup);
+
   this.rotateCountryBorders = (angleX, angleY, angleZ) => {
     countryBordersGroup.rotation.x += angleX;
     countryBordersGroup.rotation.y += angleY;
@@ -126,52 +123,57 @@ addCountryBorders = () => {
   this.renderer.domElement.addEventListener('mousemove', this.onMouseMove, false);
 }
 
+
 constructor() {
   super();
-  this.lastHighlightedBorder = null; // Przenieś deklarację zmiennej do konstruktora klasy
+  this.lastHighlightedBorder = null; 
 }
+
+
 
 onMouseMove = (event) => {
   event.preventDefault();
 
-  // Pobierz pozycję myszy na ekranie
-  const mouse = new THREE.Vector2();
-  mouse.x = (event.clientX / window.innerWidth) * 2 - 1.05;
-  mouse.y = - (event.clientY / window.innerHeight) * 2 + 0.95;
+  const rect = this.renderer.domElement.getBoundingClientRect();
+  const mouseX = event.clientX - rect.left;
+  const mouseY = event.clientY - rect.top;
 
-  // Stwórz raycaster
+  const mouse = new THREE.Vector2();
+  mouse.x = (mouseX / rect.width) * 2 - 1;
+  mouse.y = - (mouseY / rect.height) * 2 + 1;
+
   const raycaster = new THREE.Raycaster();
   raycaster.setFromCamera(mouse, this.camera);
 
-  // Sprawdź kolizję z obiektami granic kraju
+  raycaster.params.Line.threshold = 0.1;
+
   const intersects = raycaster.intersectObjects(this.scene.children, true);
 
-  // Inicjalizuj zmienną dla aktualnie podświetlonej granicy
   let highlightedBorder = null;
 
-  // Jeśli mysz najechała na granicę kraju, znajdź aktualnie podświetloną granicę
   if (intersects.length > 0) {
     intersects.forEach(intersect => {
       if (intersect.object.type === 'Line') {
-        intersect.object.material.color.set(0x00ff00); // Ustaw kolor na zielony
-        highlightedBorder = intersect.object; // Przypisz aktualnie podświetloną granicę
+        intersect.object.material.color.set(0x00ff00);
+        highlightedBorder = intersect.object;
       }
     });
   }
 
-  // Jeśli aktualnie podświetlona granica jest różna od poprzedniej, wyłącz podświetlenie poprzedniej granicy
   if (highlightedBorder !== this.lastHighlightedBorder) {
     if (this.lastHighlightedBorder) {
-      this.lastHighlightedBorder.material.color.set(0xffffff); // Przywróć pierwotny kolor poprzedniej granicy
+      this.lastHighlightedBorder.material.color.set(0xffffff);
     }
-    this.lastHighlightedBorder = highlightedBorder; // Zapisz aktualnie podświetloną granicę
+    this.lastHighlightedBorder = highlightedBorder;
   }
 }
+
+
 
 resetBordersColor = () => {
   this.scene.traverse((child) => {
       if (child.type === 'Line') {
-          child.material.color.set(0xffffff); // Przywróć pierwotny kolor
+          child.material.color.set(0xffffff);
       }
   });
 }
